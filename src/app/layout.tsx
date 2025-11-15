@@ -3,6 +3,9 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import {ThemeProvider} from "@/components/theme-provider"
 import { ClerkProvider } from "@clerk/nextjs";
+import { UsageProvider } from "./context/UsageContext";
+import { ConditionalLayout } from "./components/conditional-layout";
+import { Toaster } from "@/components/ui/sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,7 +39,12 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-            {children}
+            <UsageProvider>
+              <ConditionalLayout>
+                {children}
+              </ConditionalLayout>
+            </UsageProvider>
+            <Toaster />
           </ThemeProvider>
         </ClerkProvider>
       </body>
