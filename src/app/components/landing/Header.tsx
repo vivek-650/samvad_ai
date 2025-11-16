@@ -28,7 +28,7 @@ export function Header() {
             <>
               {/* Dashboard Button */}
               <Button asChild variant="outline" className="hidden sm:flex">
-                <Link href="/home">
+                <Link href="/dashboard">
                   <LayoutDashboard className="mr-2 h-4 w-4" />
                   Dashboard
                 </Link>
