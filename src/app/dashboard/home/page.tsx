@@ -39,8 +39,8 @@ function Home() {
     }
 
     return (
-        <div className='min-h-screen bg-background'>
-            <div className='flex gap-6 p-6'>
+        <div className='min-h-screen '>
+            <div className='flex gap-6'>
                 <div className='flex-1'>
                     <div className='mb-6'>
                         <h2 className='text-2xl font-bold text-foreground'>

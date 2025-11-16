@@ -26,10 +26,10 @@ export default function DashboardLayout({
       <div className="flex h-svh w-full bg-background">
         <AppSidebar />
         <SidebarInset className="flex-1 overflow-auto">
-          <div className="rounded-xl bg-card border shadow-sm">
+          <div className="rounded-xl bg-card  shadow-sm">
             <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 bg-card px-4 rounded-t-xl border-b">
               <SidebarTrigger className="-ml-1" />
-              <Separator orientation="vertical" className="h-4" />
+              {/* <Separator orientation="vertical" className="h-4" /> */}
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <span className="font-semibold text-foreground">{pageTitle}</span>
               </div>
