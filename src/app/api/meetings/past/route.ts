@@ -1,14 +1,12 @@
 import { prisma } from "@/lib/db";
 import { auth } from "@clerk/nextjs/server";
-import { error } from "console";
 import { NextResponse } from "next/server";
-import { connected } from "process";
 
 export async function GET() {
     try {
         const { userId } = await auth()
         if (!userId) {
-            return NextResponse.json({ error: "not authed" }, { status: 401 })
+            return NextResponse.json({ error: "not authenticated" }, { status: 401 })
         }
         const user = await prisma.user.findUnique({
             where: {
