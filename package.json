@@ -24,6 +24,7 @@
     "@radix-ui/react-switch": "^1.2.6",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@react-email/components": "^1.0.1",
+    "@slack/bolt": "^4.6.0",
     "class-variance-authority": "^0.7.1",
     "clerk": "^0.8.3",
     "clsx": "^2.1.1",
@@ -39,6 +40,7 @@
     "react-dom": "19.2.0",
     "react-h5-audio-player": "^3.10.1",
     "sonner": "^2.0.7",
+    "stripe": "^20.0.0",
     "svix": "^1.81.0",
     "tailwind-merge": "^3.4.0"
   },

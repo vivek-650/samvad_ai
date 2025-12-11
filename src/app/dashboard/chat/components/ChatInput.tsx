@@ -2,6 +2,7 @@ import { useUsage } from '@/app/contexts/UsageContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Send } from 'lucide-react'
+import Link from 'next/link'
 import React from 'react'
 
 interface ChatInputProps {
@@ -25,7 +26,7 @@ function ChatInput({
                 <div className='max-w-4xl mx-auto mb-4 p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg'>
                     <p className='text-sm text-orange-600 dark:text-orange-400 text-center'>
                         Daily limit reached ({usage.chatMessagesToday}/{limits.chatMessages} messages used).
-                        <a href="/pricing" className='underline ml-1'>Upgrade your plan</a> to continue chatting.
+                        <Link href="/dashboard/pricing" className='underline ml-1'>Upgrade your plan</Link> to continue chatting.
 
                     </p>
                 </div>

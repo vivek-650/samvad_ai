@@ -13,6 +13,8 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Ensure Turbopack treats Stripe as a server external dependency
+  serverExternalPackages: ["stripe"],
 };
 
 export default nextConfig;
