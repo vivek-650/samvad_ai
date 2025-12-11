@@ -1,16 +1,54 @@
 'use client'
 
-export default function ChatPage() {
-  return (
-    <div className="flex flex-col h-full">
-      <div className="px-8 py-6 bg-background">
-        <h1 className="text-3xl font-bold text-foreground">Chat with AI</h1>
-        <p className="text-muted-foreground mt-1">Start a conversation with your AI assistant</p>
-      </div>
+import React from 'react'
+import useChatAll from './hooks/useChatAll'
+import ChatSuggestions from './components/ChatSuggestions'
+import ChatMessages from './components/ChatMessages'
+import ChatInput from './components/ChatInput'
 
-      <div className="flex-1 px-8 py-6 bg-muted/30 overflow-auto">
-        <p className="text-sm text-muted-foreground">Chat interface coming soon...</p>
-      </div>
-    </div>
-  )
+function Chat() {
+    const {
+        chatInput,
+        setChatInput,
+        messages,
+        showSuggestions,
+        isLoading,
+        chatSuggestions,
+        handleSendMessage,
+        handleSuggestionClick,
+        handleInputChange
+    } = useChatAll()
+
+
+    return (
+        <div className='h-screen bg-background flex flex-col'>
+            <div className='flex-1 flex flex-col max-w-4xl mx-auto w-full'>
+
+                <div className='flex-1 p-6 overflow-auto'>
+                    {messages.length === 0 && showSuggestions ? (
+                        <ChatSuggestions
+                            suggestions={chatSuggestions}
+                            onSuggestionClick={handleSuggestionClick}
+                        />
+                    ) : (
+                        <ChatMessages
+                            messages={messages}
+                            isLoading={isLoading}
+                        />
+                    )}
+
+                </div>
+                <ChatInput
+                    chatInput={chatInput}
+                    onInputChange={handleInputChange}
+                    onSendMessage={handleSendMessage}
+                    isLoading={isLoading}
+                />
+
+            </div>
+
+        </div>
+    )
 }
+
+export default Chat
