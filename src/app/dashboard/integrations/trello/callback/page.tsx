@@ -18,7 +18,7 @@ export default function TrelloCallback() {
 
                 if (!token) {
                     setStatus('no auth token found')
-                    setTimeout(() => router.push('/integrations?error=no_token'), 2000)
+                    setTimeout(() => router.push('/dashboard/integrations?error=no_token'), 2000)
                     return
                 }
 
@@ -34,14 +34,14 @@ export default function TrelloCallback() {
 
                 if (response.ok) {
                     setStatus('Success! Redirecting...')
-                    router.push('/integrations?success=trello_connected&setup=trello')
+                    router.push('/dashboard/integrations?success=trello_connected&setup=trello')
                 } else {
                     setStatus('failed to sabe connection')
-                    setTimeout(() => router.push('/integrations?error=save_failed'), 2000)
+                    setTimeout(() => router.push('/dashboard/integrations?error=save_failed'), 2000)
                 }
             } catch {
                 setStatus('an error occured')
-                setTimeout(() => router.push('/integrations?error=save_failed'), 2000)
+                setTimeout(() => router.push('/dashboard/integrations?error=save_failed'), 2000)
             }
         }
         processToken()

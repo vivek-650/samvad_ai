@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     const state = searchParams.get('state')
 
     if (!userId || !code || state !== userId) {
-        return NextResponse.redirect(new URL('/integrations?error=auth_failed', process.env.NEXT_PUBLIC_APP_URL))
+        return NextResponse.redirect(new URL('/dashboard/integrations?error=auth_failed', process.env.NEXT_PUBLIC_APP_URL))
     }
 
     try {
@@ -55,9 +55,9 @@ export async function GET(request: NextRequest) {
             }
         })
 
-        return NextResponse.redirect(new URL('/integrations?success=asana_connected&setup=asana', process.env.NEXT_PUBLIC_APP_URL))
+        return NextResponse.redirect(new URL('/dashboard/integrations?success=asana_connected&setup=asana', process.env.NEXT_PUBLIC_APP_URL))
     } catch (error) {
         console.error('error saving asana integration:', error)
-        return NextResponse.redirect(new URL('/integrations?error=save_failed', process.env.NEXT_PUBLIC_APP_URL))
+        return NextResponse.redirect(new URL('/dashboard/integrations?error=save_failed', process.env.NEXT_PUBLIC_APP_URL))
     }
 }

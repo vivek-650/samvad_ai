@@ -157,7 +157,7 @@ export function useIntegrations() {
                 setSetupData(null)
 
                 fetchIntegrations()
-                window.history.replaceState({}, '', '/integrations')
+                window.history.replaceState({}, '', '/dashboard/integrations')
             }
         } catch (error) {
             console.error('error saving setup:', error)

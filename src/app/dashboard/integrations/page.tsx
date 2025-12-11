@@ -59,7 +59,7 @@ function Integrations() {
                                 onCancel={() => {
                                     setSetupMode(null)
                                     setSetupData(null)
-                                    window.history.replaceState({}, '', '/integrations')
+                                    window.history.replaceState({}, '', '/dashboard/integrations')
                                 }}
                                 loading={setupLoading}
                             />
