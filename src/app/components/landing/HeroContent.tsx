@@ -4,7 +4,7 @@ import { LayoutTextFlip } from "@/components/ui/layout-text-flip";
 import { SignUpButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { CircleArrowRight, LayoutDashboard, Play } from "lucide-react";
-import type { UserResource } from "@clerk/types";
+import type { UserResource } from "@clerk/shared/types";
 import { motion } from "motion/react";
 
 interface HeroContentProps {

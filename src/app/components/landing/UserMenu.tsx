@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { SignOutButton } from '@clerk/nextjs'
 import Link from 'next/link'
 import { LayoutDashboard, LogOut, User, Settings } from 'lucide-react'
-import type { UserResource } from '@clerk/types'
+import type { UserResource } from '@clerk/shared/types'
 
 interface UserMenuProps {
   user: UserResource | null | undefined
