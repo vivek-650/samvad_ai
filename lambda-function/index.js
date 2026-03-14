@@ -3,20 +3,37 @@ import { PrismaClient } from "@prisma/client"
 const prisma = new PrismaClient()
 
 export const handler = async (event) => {
+    console.log('=== Lambda Execution Started ===', {
+        timestamp: new Date().toISOString(),
+        eventId: event.id
+    })
+
     try {
+        console.log('Step 1: Starting calendar sync...')
         await syncAllUserCalendars()
 
+        console.log('Step 2: Scheduling bots for upcoming meetings...')
         await scheduleBotsForUpcomingMeetings()
 
+        console.log('=== Lambda Execution Completed Successfully ===')
         return {
             statusCode: 200,
             body: JSON.stringify({ message: 'success' })
         }
     } catch (error) {
-        console.error('error:', error)
+        console.error('=== FATAL ERROR ===', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            timestamp: new Date().toISOString()
+        })
         return {
             statusCode: 500,
-            body: JSON.stringify({ error: 'internal server error', details: error.message })
+            body: JSON.stringify({
+                error: 'internal server error',
+                details: error.message,
+                code: error.code
+            })
         }
     } finally {
         await prisma.$disconnect()
@@ -24,6 +41,7 @@ export const handler = async (event) => {
 }
 
 async function syncAllUserCalendars() {
+    console.log('[Calendar Sync] Fetching users with calendar connected...')
     const users = await prisma.user.findMany({
         where: {
             calendarConnected: true,
@@ -33,30 +51,52 @@ async function syncAllUserCalendars() {
         }
     })
 
+    console.log(`[Calendar Sync] Found ${users.length} users to sync`)
+
     for (const user of users) {
         try {
+            console.log(`[Calendar Sync] Syncing user ${user.clerkId}...`)
             await syncUserCalendar(user)
+            console.log(`[Calendar Sync] ✓ Successfully synced user ${user.clerkId}`)
         } catch (error) {
-            console.error(`sync failed for ${user.id}:`, error.message)
+            console.error(`[Calendar Sync] ✗ FAILED for user ${user.clerkId}:`, {
+                message: error.message,
+                code: error.code,
+                userId: user.id
+            })
         }
     }
 }
 
 async function syncUserCalendar(user) {
     try {
+        console.log(`[syncUserCalendar] Starting for user ${user.clerkId}`)
         let accessToken = user.googleAccessToken
 
         const now = new Date()
         const tokenExpiry = new Date(user.googleTokenExpiry)
         const tenMinutesFromNow = new Date(now.getTime() + 10 * 60 * 1000)
 
+        console.log(`[syncUserCalendar] Token status:`, {
+            userClerkId: user.clerkId,
+            expiryTime: tokenExpiry.toISOString(),
+            now: now.toISOString(),
+            needsRefresh: tokenExpiry <= tenMinutesFromNow
+        })
+
         if (tokenExpiry <= tenMinutesFromNow) {
+            console.log(`[syncUserCalendar] Token expired/expiring soon, refreshing...`)
             accessToken = await refreshGoogleToken(user)
             if (!accessToken) {
+                console.warn(`[syncUserCalendar] Token refresh returned null for user ${user.clerkId}`)
                 return
             }
+            console.log(`[syncUserCalendar] ✓ Token refreshed successfully`)
         }
+
         const sevenDays = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+        console.log(`[syncUserCalendar] Fetching events from ${now.toISOString()} to ${sevenDays.toISOString()}`)
+
         const response = await fetch(
             `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
             `timeMin=${now.toISOString()}&` +
@@ -69,8 +109,13 @@ async function syncUserCalendar(user) {
                 }
             }
         )
+
+        console.log(`[syncUserCalendar] Google Calendar API response status: ${response.status}`)
+
         if (!response.ok) {
+            console.error(`[syncUserCalendar] API Failed with status ${response.status}`)
             if (response.status === 401) {
+                console.log(`[syncUserCalendar] 401 Unauthorized - disconnecting calendar`)
                 await prisma.user.update({
                     where: {
                         id: user.id
@@ -83,8 +128,11 @@ async function syncUserCalendar(user) {
             }
             throw new Error(`Calendar API failed: ${response.status}`)
         }
+
         const data = await response.json()
         const events = data.items || []
+        console.log(`[syncUserCalendar] ✓ Retrieved ${events.length} events from Google Calendar`)
+
         const existingEvents = await prisma.meeting.findMany({
             where: {
                 userId: user.id,
@@ -95,9 +143,12 @@ async function syncUserCalendar(user) {
             }
         })
 
+        console.log(`[syncUserCalendar] Found ${existingEvents.length} existing meetings in DB`)
+
         const googleEventIds = new Set()
         for (const event of events) {
             if (event.status === 'cancelled') {
+                console.log(`[syncUserCalendar] Handling cancelled event: ${event.id}`)
                 await handleDeletedEvent(event)
                 continue
             }
@@ -110,13 +161,21 @@ async function syncUserCalendar(user) {
         )
 
         if (deletedEvents.length > 0) {
+            console.log(`[syncUserCalendar] Deleting ${deletedEvents.length} events that were removed from Google Calendar`)
             for (const deletedEvent of deletedEvents) {
                 await handleDeletedEventFromDB(user, deletedEvent)
             }
         }
+
+        console.log(`[syncUserCalendar] ✓ Sync completed successfully for user ${user.clerkId}`)
     } catch (error) {
-        console.error(`calendar error for ${user.id}:`, error.message)
+        console.error(`[syncUserCalendar] ✗ CRITICAL ERROR for user ${user.clerkId}:`, {
+            message: error.message,
+            code: error.code,
+            stack: error.stack
+        })
         if (error.message.includes('401') || error.message.includes('403')) {
+            console.log(`[syncUserCalendar] Auth error detected - disconnecting calendar`)
             await prisma.user.update({
                 where: {
                     id: user.id
@@ -131,7 +190,10 @@ async function syncUserCalendar(user) {
 
 async function refreshGoogleToken(user) {
     try {
+        console.log(`[refreshGoogleToken] Starting token refresh for user ${user.clerkId}`)
+
         if (!user.googleRefreshToken) {
+            console.error(`[refreshGoogleToken] ✗ No refresh token available for user ${user.clerkId}`)
             await prisma.user.update({
                 where: {
                     id: user.id
@@ -144,6 +206,7 @@ async function refreshGoogleToken(user) {
             return null
         }
 
+        console.log(`[refreshGoogleToken] Calling Google OAuth endpoint...`)
         const response = await fetch('https://oauth2.googleapis.com/token', {
             method: 'POST',
             headers: {
@@ -156,9 +219,20 @@ async function refreshGoogleToken(user) {
                 grant_type: 'refresh_token'
             })
         })
+
+        if (!response.ok) {
+            console.error(`[refreshGoogleToken] ✗ OAuth response not OK: ${response.status}`)
+        }
+
         const tokens = await response.json()
 
         if (!tokens.access_token) {
+            console.error(`[refreshGoogleToken] ✗ No access token in response:`, {
+                hasRefreshToken: !!tokens.refresh_token,
+                hasExpiry: !!tokens.expires_in,
+                error: tokens.error,
+                errorDescription: tokens.error_description
+            })
             await prisma.user.update({
                 where: {
                     id: user.id
@@ -169,6 +243,8 @@ async function refreshGoogleToken(user) {
             })
             return null
         }
+
+        console.log(`[refreshGoogleToken] ✓ Token refreshed, new expiry: ${new Date(Date.now() + (tokens.expires_in * 1000)).toISOString()}`)
 
         await prisma.user.update({
             where: {
@@ -181,7 +257,11 @@ async function refreshGoogleToken(user) {
         })
         return tokens.access_token
     } catch (error) {
-        console.error(`token refresh error for ${user.clerkId}: `, error)
+        console.error(`[refreshGoogleToken] ✗ CRITICAL ERROR for user ${user.clerkId}:`, {
+            message: error.message,
+            code: error.code,
+            stack: error.stack
+        })
         await prisma.user.update({
             where: {
                 id: user.id
@@ -286,6 +366,11 @@ async function scheduleBotsForUpcomingMeetings() {
     const now = new Date()
     const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000)
 
+    console.log('[Bot Scheduler] Looking for meetings between', {
+        from: now.toISOString(),
+        to: fiveMinutesFromNow.toISOString()
+    })
+
     const upcomingMeetings = await prisma.meeting.findMany({
         where: {
             startTime: {
@@ -296,19 +381,28 @@ async function scheduleBotsForUpcomingMeetings() {
             botSent: false,
             meetingUrl: {
                 not: null
-            },
-
+            }
         },
         include: {
             user: true
         }
     })
 
+    console.log(`[Bot Scheduler] Found ${upcomingMeetings.length} meetings ready for bot scheduling`)
+
     for (const meeting of upcomingMeetings) {
         try {
+            console.log(`[Bot Scheduler] Processing meeting: "${meeting.title}" (ID: ${meeting.id})`, {
+                startTime: meeting.startTime.toISOString(),
+                meetingUrl: meeting.meetingUrl,
+                userId: meeting.userId,
+                userClerkId: meeting.user.clerkId
+            })
+
             const canSchedule = await canUserScheduleMeeting(meeting.user)
 
             if (!canSchedule.allowed) {
+                console.warn(`[Bot Scheduler] ✗ User ${meeting.user.clerkId} NOT ALLOWED to schedule bot:`, canSchedule.reason)
                 await prisma.meeting.update({
                     where: {
                         id: meeting.id
@@ -320,6 +414,9 @@ async function scheduleBotsForUpcomingMeetings() {
                 })
                 continue
             }
+
+            console.log(`[Bot Scheduler] ✓ User allowed to schedule bot, sending request to MeetingBaas...`)
+
             const requestBody = {
                 meeting_url: meeting.meetingUrl,
                 bot_name: meeting.user.botName || 'AI Noteetaker',
@@ -337,6 +434,12 @@ async function scheduleBotsForUpcomingMeetings() {
                 requestBody.bot_image = meeting.user.botImageUrl
             }
 
+            console.log(`[Bot Scheduler] Sending request to MeetingBaas:`, {
+                meeting_url: requestBody.meeting_url,
+                bot_name: requestBody.bot_name,
+                webhook_url: requestBody.webhook_url
+            })
+
             const response = await fetch('https://api.meetingbaas.com/bots', {
                 method: 'POST',
                 headers: {
@@ -346,11 +449,22 @@ async function scheduleBotsForUpcomingMeetings() {
                 body: JSON.stringify(requestBody)
             })
 
+            console.log(`[Bot Scheduler] MeetingBaas response status: ${response.status}`)
+
             if (!response.ok) {
-                throw new Error(`meeting baas api req failed: ${response.status}`)
+                const errorText = await response.text()
+                console.error(`[Bot Scheduler] ✗ MeetingBaas API Failed:`, {
+                    status: response.status,
+                    error: errorText
+                })
+                throw new Error(`meeting baas api req failed: ${response.status} - ${errorText}`)
             }
 
             const data = await response.json()
+            console.log(`[Bot Scheduler] ✓ Bot successfully sent to MeetingBaas:`, {
+                bot_id: data.bot_id,
+                meeting_title: meeting.title
+            })
 
             await prisma.meeting.update({
                 where: {
@@ -365,9 +479,13 @@ async function scheduleBotsForUpcomingMeetings() {
 
             await incrementMeetingUsage(meeting.userId)
         } catch (error) {
-            console.error(`bot failed for ${meeting.title}: `, error.message)
+            console.error(`[Bot Scheduler] ✗ FAILED for meeting "${meeting.title}":`, {
+                message: error.message,
+                code: error.code,
+                meetingId: meeting.id,
+                userId: meeting.userId
+            })
         }
-
     }
 }
 
@@ -379,29 +497,45 @@ async function canUserScheduleMeeting(user) {
             pro: { meetings: 30 },
             premium: { meetings: -1 }
         }
+
+        console.log(`[canUserScheduleMeeting] Checking user ${user.clerkId}:`, {
+            currentPlan: user.currentPlan,
+            subscriptionStatus: user.subscriptionStatus,
+            meetingsThisMonth: user.meetingsThisMonth
+        })
+
         const limits = PLAN_LIMITS[user.currentPlan] || PLAN_LIMITS.free
 
         if (user.currentPlan === 'free' || user.subscriptionStatus !== 'active') {
+            const reason = `${user.currentPlan === 'free' ? 'Free plan' : 'Inactive subscription'} - upgrade required`
+            console.log(`[canUserScheduleMeeting] ✗ User not allowed:`, reason)
             return {
                 allowed: false,
-                reason: `${user.currentPlan === 'free' ? 'Free plan' : 'Inactive subscription'} - upgrade required`
+                reason: reason
             }
         }
 
         if (limits.meetings !== -1 && user.meetingsThisMonth >= limits.meetings) {
+            const reason = `Monthly limit reached (${user.meetingsThisMonth}/${limits.meetings})`
+            console.log(`[canUserScheduleMeeting] ✗ User not allowed:`, reason)
             return {
                 allowed: false,
-                reason: `Monthly limit reached (${user.meetingsThisMonth}/${limits.meetings})`
+                reason: reason
             }
         }
+
+        console.log(`[canUserScheduleMeeting] ✓ User allowed to schedule bot`)
         return {
             allowed: true
         }
     } catch (error) {
-        console.error('error checking meeting limits:', error)
+        console.error('[canUserScheduleMeeting] ✗ ERROR checking meeting limits:', {
+            message: error.message,
+            code: error.code
+        })
         return {
             allowed: false,
-            reason: 'Error chekcing limits '
+            reason: 'Error checking limits'
         }
     }
 }
