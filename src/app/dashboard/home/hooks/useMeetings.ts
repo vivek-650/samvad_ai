@@ -1,5 +1,5 @@
 import { useAuth } from "@clerk/nextjs"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 export interface CalendarEvent {
     id: string
@@ -39,6 +39,7 @@ export function useMeetings() {
     const [error, setError] = useState<string>('')
     const [botToggles, setBotToggles] = useState<{ [key: string]: boolean }>({})
     const [initialLoading, setInitialLoading] = useState(true)
+    const botToggleTimers = useRef<{ [key: string]: ReturnType<typeof setTimeout> }>({})
 
 
     useEffect(() => {
@@ -117,38 +118,44 @@ export function useMeetings() {
         setPastLoading(false)
     }
 
-    const toggleBot = async (eventId: string) => {
-        try {
-            const event = upcomingEvents.find(e => e.id === eventId)
-            if (!event?.meetingId) {
-                return
-            }
+    const toggleBot = (eventId: string) => {
+        const event = upcomingEvents.find(e => e.id === eventId)
+        if (!event?.meetingId) return
 
-            setBotToggles(prev => ({
-                ...prev,
-                [eventId]: !prev[eventId]
-            }))
-
-            const response = await fetch(`/api/meetings/${event.meetingId}/bot-toggle`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    botScheduled: !botToggles[eventId]
-                })
-            })
-
-            if (!response.ok) {
-                setBotToggles(prev => ({
-                    ...prev,
-                    [eventId]: !prev[eventId]
-                }))
-            }
-        } catch {
-            setBotToggles(prev => ({
-                ...prev,
-                [eventId]: !prev[eventId]
-            }))
+        // Cancel any pending debounced call for this event
+        if (botToggleTimers.current[eventId]) {
+            clearTimeout(botToggleTimers.current[eventId])
+            delete botToggleTimers.current[eventId]
         }
+
+        // Derive the intended next value from current state snapshot to avoid
+        // stale-closure bugs when the user clicks rapidly.
+        let nextValue: boolean
+        setBotToggles(prev => {
+            nextValue = !prev[eventId]
+            return { ...prev, [eventId]: nextValue! }
+        })
+
+        // Debounce the API call: only fire after 300 ms of inactivity so rapid
+        // double-clicks collapse into a single request with the final state.
+        botToggleTimers.current[eventId] = setTimeout(async () => {
+            delete botToggleTimers.current[eventId]
+            const meetingId = event.meetingId
+            try {
+                const response = await fetch(`/api/meetings/${meetingId}/bot-toggle`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ botScheduled: nextValue! })
+                })
+
+                if (!response.ok) {
+                    // Revert on server failure
+                    setBotToggles(prev => ({ ...prev, [eventId]: !nextValue! }))
+                }
+            } catch {
+                setBotToggles(prev => ({ ...prev, [eventId]: !nextValue! }))
+            }
+        }, 300)
     }
 
     const directOAuth = async () => {
