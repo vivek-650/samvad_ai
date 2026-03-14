@@ -41,3 +41,19 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# Lambda Functions - Build Artifacts
+lambda-function/node_modules/
+lambda-function/lambda-build/
+lambda-function/lambda-deployment.zip
+lambda-function/response.json
+lambda-function/.env
+
+lambda-chat/node_modules/
+lambda-chat/lambda-build/
+lambda-chat/lambda-deployment.zip
+lambda-chat/response.json
+lambda-chat/.env
+
+# AWS CLI Installer
+AWSCLIV2.msi

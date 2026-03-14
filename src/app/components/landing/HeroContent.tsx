@@ -49,7 +49,7 @@ export function HeroContent({ isSignedIn, user }: HeroContentProps) {
           {isSignedIn ? (
             <>
               <Button asChild size="lg" className="px-8">
-                <Link href="/dashboard">
+                <Link href="/dashboard/home">
                   <LayoutDashboard className="mr-2 h-4 w-4" />
                   Go to Dashboard
                 </Link>

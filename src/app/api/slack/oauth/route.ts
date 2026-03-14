@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
         const returnTo = state?.startsWith('return=') ? state.split('return=')[1] : null
 
         if (returnTo === 'integrations') {
-            return NextResponse.redirect(`${baseUrl}/integrations?setup=slack`)
+            return NextResponse.redirect(`${baseUrl}/dashboard/integrations?setup=slack`)
         } else {
             return NextResponse.redirect(`${baseUrl}/?slack=installed`)
         }

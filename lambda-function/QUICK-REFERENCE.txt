@@ -1,0 +1,178 @@
+╔════════════════════════════════════════════════════════════════════════╗
+║                  AWS Lambda Deployment - Quick Reference                ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+┌────────────────────────────────────────────────────────────────────────┐
+│  📦 BUILD & DEPLOY                                                     │
+└────────────────────────────────────────────────────────────────────────┘
+
+  Windows (PowerShell)              │  Linux/Mac/WSL
+  ──────────────────────────────────┼──────────────────────────────────
+  .\build.ps1                       │  ./build.sh
+  .\deploy.ps1                      │  ./deploy.sh
+  .\build-and-deploy.ps1            │  ./build-and-deploy.sh
+                                    │
+  .\deploy.ps1 -UseS3               │  ./deploy.sh --use-s3
+  (for packages > 50MB)             │  (for packages > 50MB)
+
+┌────────────────────────────────────────────────────────────────────────┐
+│  ⚙️ CONFIGURATION (Edit deploy.ps1 or deploy.sh)                      │
+└────────────────────────────────────────────────────────────────────────┘
+
+  Required Settings:
+  ─────────────────────────────────────────────────────────────────────
+  $FUNCTION_NAME = "bot-scheduler-lambda"
+  $ROLE_ARN      = "arn:aws:iam::ACCOUNT_ID:role/YOUR_ROLE"
+  $REGION        = "us-east-1"
+  $S3_BUCKET     = "your-deployment-bucket"  # If using S3
+
+  Environment Variables:
+  ─────────────────────────────────────────────────────────────────────
+  DATABASE_URL           = "postgresql://..."
+  GOOGLE_CLIENT_ID       = "your-client-id"
+  GOOGLE_CLIENT_SECRET   = "your-client-secret"
+  MEETING_BAAS_API_KEY   = "your-api-key"
+  WEBHOOK_URL            = "https://your-domain/api/webhooks/meetingbaas"
+
+┌────────────────────────────────────────────────────────────────────────┐
+│  🧪 TESTING                                                            │
+└────────────────────────────────────────────────────────────────────────┘
+
+  Local Testing:
+  ─────────────────────────────────────────────────────────────────────
+  node test-local.js
+
+  Remote Testing:
+  ─────────────────────────────────────────────────────────────────────
+  aws lambda invoke --function-name bot-scheduler-lambda response.json
+  cat response.json           # Linux/Mac
+  Get-Content response.json   # Windows
+
+┌────────────────────────────────────────────────────────────────────────┐
+│  📊 MONITORING                                                         │
+└────────────────────────────────────────────────────────────────────────┘
+
+  View Logs (Real-time):
+  ─────────────────────────────────────────────────────────────────────
+  aws logs tail /aws/lambda/bot-scheduler-lambda --follow
+
+  View Recent Logs:
+  ─────────────────────────────────────────────────────────────────────
+  aws logs tail /aws/lambda/bot-scheduler-lambda --since 10m
+
+  View in Console:
+  ─────────────────────────────────────────────────────────────────────
+  https://console.aws.amazon.com/lambda/home?region=us-east-1
+
+┌────────────────────────────────────────────────────────────────────────┐
+│  ⏰ EVENTBRIDGE SETUP (Run Once)                                      │
+└────────────────────────────────────────────────────────────────────────┘
+
+  # Get account ID
+  aws sts get-caller-identity --query Account --output text
+
+  # Create 5-minute trigger
+  aws events put-rule \
+    --name bot-scheduler-trigger \
+    --schedule-expression "rate(5 minutes)"
+
+  # Grant permission
+  aws lambda add-permission \
+    --function-name bot-scheduler-lambda \
+    --statement-id bot-scheduler-eventbridge \
+    --action lambda:InvokeFunction \
+    --principal events.amazonaws.com \
+    --source-arn arn:aws:events:REGION:ACCOUNT_ID:rule/bot-scheduler-trigger
+
+  # Connect trigger
+  aws events put-targets \
+    --rule bot-scheduler-trigger \
+    --targets "Id"="1","Arn"="arn:aws:lambda:REGION:ACCOUNT_ID:function:bot-scheduler-lambda"
+
+┌────────────────────────────────────────────────────────────────────────┐
+│  🆘 TROUBLESHOOTING                                                    │
+└────────────────────────────────────────────────────────────────────────┘
+
+  Build Issues:
+  ─────────────────────────────────────────────────────────────────────
+  • "npm not found"           → Install Node.js 20.x
+  • "Permission denied"        → chmod +x *.sh (Linux)
+  • Build fails                → Check: node --version
+
+  Deployment Issues:
+  ─────────────────────────────────────────────────────────────────────
+  • "AccessDenied"             → Run: aws configure
+  • "Invalid Role ARN"         → Update ROLE_ARN in deploy script
+  • Package too large          → Use -UseS3 or --use-s3
+  • S3 upload fails            → Check bucket name and permissions
+
+  Runtime Issues:
+  ─────────────────────────────────────────────────────────────────────
+  • Database connection fails  → Check DATABASE_URL & security groups
+  • Function timeout           → Increase TIMEOUT in deploy script
+  • Out of memory              → Increase MEMORY_SIZE in deploy script
+
+┌────────────────────────────────────────────────────────────────────────┐
+│  ℹ️ IMPORTANT NOTES                                                    │
+└────────────────────────────────────────────────────────────────────────┘
+
+  ⚠️  Console Code Editor:
+      Your function package is 20-50 MB, which exceeds the 3 MB limit
+      for inline code editing in AWS Console. This is NORMAL.
+
+      You CAN:  ✅ View logs, metrics, configuration
+      You CANNOT: ❌ Edit code inline in console
+
+      To update code: Run .\build-and-deploy.ps1 locally
+
+  💰 Estimated Cost:
+      < $5/month for 5-minute interval (8,640 invocations/month)
+      Free tier covers first 1M requests + 400,000 GB-seconds
+
+  📏 Package Size:
+      Expected: 20-50 MB (optimized)
+      Method:   S3 upload (auto-selected if > 50 MB)
+
+┌────────────────────────────────────────────────────────────────────────┐
+│  📚 FILE REFERENCE                                                     │
+└────────────────────────────────────────────────────────────────────────┘
+
+  README.md               → Complete documentation
+  SETUP.md                → Step-by-step setup guide
+  DEPLOYMENT-SUMMARY.md   → Detailed deployment info
+  QUICK-REFERENCE.txt     → This file
+
+┌────────────────────────────────────────────────────────────────────────┐
+│  🚀 FIRST TIME DEPLOYMENT CHECKLIST                                   │
+└────────────────────────────────────────────────────────────────────────┘
+
+  [ ] Install AWS CLI
+  [ ] Run: aws configure
+  [ ] Create IAM role for Lambda
+  [ ] Create S3 bucket (if needed)
+  [ ] Update deploy script with your settings
+  [ ] Test locally: node test-local.js
+  [ ] Deploy: .\build-and-deploy.ps1
+  [ ] Set up EventBridge trigger
+  [ ] Test: aws lambda invoke ...
+  [ ] Monitor: aws logs tail ...
+
+┌────────────────────────────────────────────────────────────────────────┐
+│  🔗 USEFUL LINKS                                                       │
+└────────────────────────────────────────────────────────────────────────┘
+
+  AWS Lambda Console:
+  https://console.aws.amazon.com/lambda/
+
+  CloudWatch Logs:
+  https://console.aws.amazon.com/cloudwatch/
+
+  EventBridge Rules:
+  https://console.aws.amazon.com/events/
+
+  AWS CLI Installation:
+  https://aws.amazon.com/cli/
+
+═══════════════════════════════════════════════════════════════════════════
+
+Need detailed help? See SETUP.md

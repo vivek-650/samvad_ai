@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
 
         else if (projectId) {
             const projects = await jira.getProjects(validToken, integration.workspaceId)
-            const selectedProject = projects.values.find(p => p.id === projectId)
+            const selectedProject = projects.values.find((p: any) => p.id === projectId)
 
             if (!selectedProject) {
                 return NextResponse.json({ error: 'project not found' }, { status: 404 })
