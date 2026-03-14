@@ -1,8 +1,25 @@
-const { PrismaClient } = require("@prisma/client");
+let prisma;
 
-const prisma = new PrismaClient();
+async function getPrisma() {
+  if (!prisma) {
+    const { PrismaClient } = await import("@prisma/client");
+    prisma = new PrismaClient();
+  }
+  return prisma;
+}
+
+const BOT_SCHEDULE_LEAD_MINUTES = Number.parseInt(
+  process.env.BOT_SCHEDULE_LEAD_MINUTES || "7",
+  10,
+);
+const BOT_SCHEDULE_GRACE_MINUTES = Number.parseInt(
+  process.env.BOT_SCHEDULE_GRACE_MINUTES || "2",
+  10,
+);
 
 exports.handler = async (event) => {
+  const db = await getPrisma();
+
   console.log("=== Lambda Execution Started ===", {
     timestamp: new Date().toISOString(),
     eventId: event.id,
@@ -36,7 +53,8 @@ exports.handler = async (event) => {
       }),
     };
   } finally {
-    await prisma.$disconnect();
+    await db.$disconnect();
+    prisma = null;
   }
 };
 
@@ -383,6 +401,9 @@ async function processEvent(user, event) {
       if (exsistingMeeting.attendees !== eventData.attendees)
         changes.push("attendees");
 
+      // Only update calendar-sourced fields. Never override the user's
+      // botScheduled preference — that is controlled exclusively via the
+      // bot-toggle API from the dashboard.
       const updateData = {
         title: eventData.title,
         description: eventData.description,
@@ -392,9 +413,6 @@ async function processEvent(user, event) {
         attendees: eventData.attendees,
       };
 
-      if (!exsistingMeeting.botSent) {
-        updateData.botScheduled = eventData.botScheduled;
-      }
       await prisma.meeting.update({
         where: {
           calendarEventId: event.id,
@@ -413,18 +431,25 @@ async function processEvent(user, event) {
 
 async function scheduleBotsForUpcomingMeetings() {
   const now = new Date();
-  const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
+  const scheduleWindowStart = new Date(
+    now.getTime() - BOT_SCHEDULE_GRACE_MINUTES * 60 * 1000,
+  );
+  const scheduleWindowEnd = new Date(
+    now.getTime() + BOT_SCHEDULE_LEAD_MINUTES * 60 * 1000,
+  );
 
   console.log("[Bot Scheduler] Looking for meetings between", {
-    from: now.toISOString(),
-    to: fiveMinutesFromNow.toISOString(),
+    from: scheduleWindowStart.toISOString(),
+    to: scheduleWindowEnd.toISOString(),
+    leadMinutes: BOT_SCHEDULE_LEAD_MINUTES,
+    graceMinutes: BOT_SCHEDULE_GRACE_MINUTES,
   });
 
   const upcomingMeetings = await prisma.meeting.findMany({
     where: {
       startTime: {
-        gte: now,
-        lte: fiveMinutesFromNow,
+        gte: scheduleWindowStart,
+        lte: scheduleWindowEnd,
       },
       botScheduled: true,
       botSent: false,
@@ -460,15 +485,6 @@ async function scheduleBotsForUpcomingMeetings() {
           `[Bot Scheduler] ✗ User ${meeting.user.clerkId} NOT ALLOWED to schedule bot:`,
           canSchedule.reason,
         );
-        await prisma.meeting.update({
-          where: {
-            id: meeting.id,
-          },
-          data: {
-            botSent: true,
-            botJoinedAt: new Date(),
-          },
-        });
         continue;
       }
 

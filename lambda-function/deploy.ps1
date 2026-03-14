@@ -54,7 +54,8 @@ Write-Host ""
 try {
     aws lambda get-function --function-name $FUNCTION_NAME --region $REGION *> $null
     $functionExists = $LASTEXITCODE -eq 0
-} catch {
+}
+catch {
     $functionExists = $false
 }
 
@@ -137,14 +138,31 @@ else {
         --region $REGION
 
     Write-Host "Updating function configuration..." -ForegroundColor Yellow
-    aws lambda update-function-configuration `
-        --function-name $FUNCTION_NAME `
-        --runtime $RUNTIME `
-        --handler $HANDLER `
-        --timeout $TIMEOUT `
-        --memory-size $MEMORY_SIZE `
-        --environment "Variables=$ENV_VARS" `
-        --region $REGION | Out-Null
+
+    # Only push env vars if the required keys are actually set in this shell session.
+    # If not, skip silently — env vars already stored in Lambda are preserved.
+    $hasEnvVars = $env:DATABASE_URL -and $env:GOOGLE_CLIENT_ID -and $env:GOOGLE_CLIENT_SECRET -and $env:MEETING_BAAS_API_KEY -and $env:WEBHOOK_URL
+
+    if ($hasEnvVars) {
+        aws lambda update-function-configuration `
+            --function-name $FUNCTION_NAME `
+            --runtime $RUNTIME `
+            --handler $HANDLER `
+            --timeout $TIMEOUT `
+            --memory-size $MEMORY_SIZE `
+            --environment "Variables=$ENV_VARS" `
+            --region $REGION | Out-Null
+    }
+    else {
+        aws lambda update-function-configuration `
+            --function-name $FUNCTION_NAME `
+            --runtime $RUNTIME `
+            --handler $HANDLER `
+            --timeout $TIMEOUT `
+            --memory-size $MEMORY_SIZE `
+            --region $REGION | Out-Null
+        Write-Host "  (env vars not set locally — existing Lambda env vars preserved)" -ForegroundColor DarkGray
+    }
 
     Write-Host "Function updated successfully." -ForegroundColor Green
 }

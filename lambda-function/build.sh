@@ -42,8 +42,8 @@ cd "$BUILD_DIR"
 echo "📥 Installing production dependencies..."
 npm ci --production --no-audit --no-fund
 
-# Generate Prisma Client for Linux
-echo "🔧 Generating Prisma Client for AWS Lambda (linux-musl)..."
+# Generate Prisma Client with configured binary targets (includes Lambda runtime target)
+echo "🔧 Generating Prisma Client for AWS Lambda..."
 npx prisma generate
 
 # Remove unnecessary Prisma binaries and files
@@ -52,17 +52,24 @@ echo "🗑️  Removing unnecessary files..."
 # Remove Prisma CLI (not needed at runtime)
 rm -rf node_modules/prisma
 
-# Remove unnecessary Prisma engine binaries (keep only linux-musl)
+# Remove unnecessary Prisma engine binaries (keep rhel-openssl-3.0.x for Lambda)
 find node_modules/.prisma/client -type f \( \
     -name "libquery_engine-darwin*" \
     -o -name "libquery_engine-windows*" \
     -o -name "libquery_engine-debian*" \
-    -o -name "libquery_engine-rhel*" \
     -o -name "schema-engine*" \
     -o -name "introspection-engine*" \
     -o -name "migration-engine*" \
     -o -name "prisma-fmt*" \
 \) -delete 2>/dev/null || true
+
+# Fail fast if the Lambda runtime engine is missing from the bundle.
+REQUIRED_ENGINE="node_modules/.prisma/client/libquery_engine-rhel-openssl-3.0.x.so.node"
+if [ ! -f "$REQUIRED_ENGINE" ]; then
+    echo "❌ Missing required Prisma engine: $REQUIRED_ENGINE"
+    exit 1
+fi
+echo "✅ Prisma runtime engine present: $REQUIRED_ENGINE"
 
 # Remove other unnecessary files
 find node_modules -type f \( \
