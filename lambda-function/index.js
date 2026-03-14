@@ -163,7 +163,7 @@ async function syncUserCalendar(user) {
         if (deletedEvents.length > 0) {
             console.log(`[syncUserCalendar] Deleting ${deletedEvents.length} events that were removed from Google Calendar`)
             for (const deletedEvent of deletedEvents) {
-                await handleDeletedEventFromDB(user, deletedEvent)
+                await handleDeletedEventFromDB(deletedEvent)
             }
         }
 
@@ -294,11 +294,14 @@ async function handleDeletedEvent(event) {
 }
 
 async function handleDeletedEventFromDB(dbEvent) {
-    await prisma.meeting.delete({
+    console.log(`[handleDeletedEventFromDB] Deleting meeting from DB: ${dbEvent.id}`)
+    // Use deleteMany instead of delete - it won't throw if record doesn't exist
+    const result = await prisma.meeting.deleteMany({
         where: {
             id: dbEvent.id
         }
     })
+    console.log(`[handleDeletedEventFromDB] Deleted ${result.count} meeting(s)`)
 }
 
 async function processEvent(user, event) {
