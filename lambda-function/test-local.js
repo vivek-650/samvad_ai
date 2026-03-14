@@ -5,7 +5,7 @@
 // 2. Set environment variables in .env file
 // 3. Run: node test-local.js
 
-import { handler } from "./index.js";
+const { handler } = require("./index.js");
 
 // Mock event
 const event = {};
