@@ -21,6 +21,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(response)
     } catch (error) {
         console.error('Error in chat:', error)
-        return NextResponse.json({ error: 'Faled to process question' }, { status: 500 })
+        return NextResponse.json({ error: 'failed to process question' }, { status: 500 })
     }
 }

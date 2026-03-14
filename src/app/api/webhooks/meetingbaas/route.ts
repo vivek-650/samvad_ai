@@ -54,11 +54,48 @@ export async function POST(request: NextRequest) {
 
                     if (Array.isArray(webhookData.transcript)) {
                         transcriptText = webhookData.transcript
-                            .map((item: any) => `${item.speaker || 'Speaker'}: ${item.words.map((w: any) => w.word).join(' ')}`)
+                            .map((item: unknown) => {
+                                const record = typeof item === 'object' && item !== null
+                                    ? (item as { speaker?: unknown; words?: unknown; text?: unknown })
+                                    : {}
+                                const speaker = typeof record.speaker === 'string' ? record.speaker : 'Speaker'
+                                const words = Array.isArray(record.words)
+                                    ? record.words
+                                        .map((w: unknown) => {
+                                            if (typeof w === 'object' && w !== null) {
+                                                const word = (w as { word?: unknown }).word
+                                                return typeof word === 'string' ? word : ''
+                                            }
+                                            return ''
+                                        })
+                                        .filter(Boolean)
+                                        .join(' ')
+                                    : ''
+                                const text = typeof record.text === 'string' ? record.text : words
+                                return `${speaker}: ${text}`
+                            })
                             .join('\n')
-                    } else {
+                    } else if (typeof webhookData.transcript === 'string') {
                         transcriptText = webhookData.transcript
+                    } else if (webhookData.transcript?.text) {
+                        transcriptText = webhookData.transcript.text
+                    } else {
+                        transcriptText = ''
                     }
+
+                    // Save summary first so transcript analysis is preserved even if
+                    // vector indexing fails later.
+                    await prisma.meeting.update({
+                        where: {
+                            id: meeting.id
+                        },
+                        data: {
+                            summary: processed.summary,
+                            actionItems: processed.actionItems,
+                            processed: true,
+                            processedAt: new Date()
+                        }
+                    })
 
                     try {
                         await sendMeetingSummaryEmail({
@@ -84,21 +121,23 @@ export async function POST(request: NextRequest) {
                         console.error('failed to send the email:', emailError)
                     }
 
-                    await processTranscript(meeting.id, meeting.userId, transcriptText, meeting.title)
+                    if (transcriptText.trim()) {
+                        try {
+                            await processTranscript(meeting.id, meeting.userId, transcriptText, meeting.title)
 
-                    await prisma.meeting.update({
-                        where: {
-                            id: meeting.id
-                        },
-                        data: {
-                            summary: processed.summary,
-                            actionItems: processed.actionItems,
-                            processed: true,
-                            processedAt: new Date(),
-                            ragProcessed: true,
-                            ragProcessedAt: new Date()
+                            await prisma.meeting.update({
+                                where: {
+                                    id: meeting.id
+                                },
+                                data: {
+                                    ragProcessed: true,
+                                    ragProcessedAt: new Date()
+                                }
+                            })
+                        } catch (ragError) {
+                            console.error('failed to index transcript for RAG:', ragError)
                         }
-                    })
+                    }
 
 
                 } catch (processingError) {
